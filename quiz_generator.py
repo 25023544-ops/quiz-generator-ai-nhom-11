@@ -90,9 +90,6 @@ def shuffle_options(q):  #AI có xu hướng đặt đáp án ở cùng 1 đáp 
     dung = q["options"][NHAN.index(q["answer"])]
     options = q["options"][:]  # [:] sao chép list để không làm hỏng list gốc
     random.shuffle(options)    
-    # Tìm vị trí mới của đáp án đúng rồi đổi lại thành chữ cái.
-    # Chạy đúng vì validate_question đã đảm bảo 4 đáp án không trùng nhau.
-    # {**q, ...} copy mọi khóa của q rồi ghi đè options và answer
     return {**q, "options": options, "answer": NHAN[options.index(dung)]}
 
 def _sinh_tu_mot_doan(text, n):  
@@ -119,7 +116,6 @@ def _chia_doan(text, so_cau):
         buoc = len(doan) / so_cau  # ví dụ 20 đoạn, 5 câu -> bước 4 -> lấy đoạn 0,4,8,12,16
         doan = [doan[int(i * buoc)] for i in range(so_cau)]
     return doan
-
 
 def generate_questions(text, so_cau=10, tron_dap_an=True):
    
