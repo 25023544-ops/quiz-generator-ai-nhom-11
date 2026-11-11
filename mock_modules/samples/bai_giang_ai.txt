@@ -1,0 +1,19 @@
+
+BÀI 1: GIỚI THIỆU TRÍ TUỆ NHÂN TẠO
+
+1. Trí tuệ nhân tạo (AI)
+Trí tuệ nhân tạo là lĩnh vực nghiên cứu và xây dựng
+các hệ thống có khả năng thực hiện những nhiệm vụ
+thường đòi hỏi trí thông minh của con người.
+
+2. Machine Learning
+Machine Learning là một lĩnh vực con của AI,
+cho phép máy tính học các quy luật từ dữ liệu
+để đưa ra dự đoán hoặc quyết định.
+
+3. Ứng dụng của AI
+AI được ứng dụng trong:
+- Nhận dạng giọng nói
+- Nhận dạng hình ảnh
+- Hệ thống gợi ý sản phẩm
+- Hỗ trợ học tập
