@@ -3,42 +3,40 @@ import tempfile
 from pathlib import Path
 import streamlit as st
 
-#CHẾ ĐỘ CHẠY
-USE_MOCK=True
-#IMPORT CÁC MODULE
-if USE_MOCK:
-    from document_processor import extract_text
-    from ai_summarizer import summarize
-    from mock_modules.quiz_generator import generate_quiz
-else:
-    from document_processor import extract_text
-    from ai_summarizer import summarize
-    from quiz_generator import generate_quiz
+from document_processor import extract_text
+from ai_summarizer import summarize
+from quiz_generator import generate_questions
 
 #HÀM KIỂM TRA CẤU TRÚC CÂU HỎI
 def validate_quiz(questions):
     if not isinstance(questions,list) or not questions:
         raise ValueError("Bộ câu hỏi phải là danh sách không rỗng.")
-    for q in questions:
+    for i, q in enumerate(questions,start=1):
         if not isinstance(q,dict):
-            raise ValueError("Mỗi câu hỏi phải là dict.")
-        
-        if not isinstance(q.get("questions"),str):
-            raise ValueError("Thiếu nội dung câu hỏi.")
+            raise ValueError(f"Câu {i} không phải dict.")
+        question=q.get("question")
+        if not isinstance(question,str) or not question.strip():
+            raise ValueError(f"Câu {i} thiếu nội dung câu hỏi.")
         
         options=q.get("options")
         if not isinstance(options,list) or len(options)!=4:
-            raise ValueError("Mỗi câu phải có 4 lựa chọn.")
+            raise ValueError(f"Câu {i} có lựa chọn không hợp lệ.")
         
         if not all(isinstance(x,str) for x in options):
-            raise ValueError("Các lựa chọn phải là chuỗi.")
-        
-        for label,option in zip("ABCD",options):
-            if not option.startswith(label+"."):
-                raise ValueError("Lựa chọn phải bắt đầu từ A. đến D.")
-            
-        if q.get("answer") not in ("A","B","C","D"):
-            raise ValueError("Đáp án phải là A,B,C hoặc D.")
+            raise ValueError(f"Câu {i} có đáp án không hợp lệ.")
+
+        explanation = q.get("explanation")
+        if not isinstance(explanation, str) or not explanation.strip():
+            raise ValueError(f"Câu {i} thiếu phần giải thích.")
+
+def reset_quiz():
+    st.session_state["submitted"] = False
+
+    # tăng quiz_version lên 1 sẽ làm thay đổi key của tất cả các nút radio 
+    #Streamlit sẽ coi đây là một bộ nút radio hoàn toàn mới và tự động đưa chúng về trạng thái chưa chọn gì.
+    st.session_state["quiz_version"] = (
+        st.session_state.get("quiz_version", 0) + 1
+    )
         
 #Hàm chuyển uploadedfile thành đường dẫn.Đón nhận file UploadedFile từ giao diện 
 # Streamlit-> Chuyển thành file thật lưu tạm trên ổ cứng-> Đưa
@@ -70,12 +68,12 @@ st.set_page_config(
 st.title("📚 AI Study Assistant")
 
 st.info(
-    "Đang đọc PDF/TXT thật. "
-    "Chức năng tóm tắt và tạo câu hỏi vẫn sử dụng dữ liệu mẫu."
+    "Đang sử dụng các module thật: "
+    "đọc tài liệu, tóm tắt bằng Gemini và tạo câu hỏi AI."
 )
-    
+
 #1.Nhận file
-uploaded_file=st.file_uploader("Tải tài liệu PDF/TXT",type=["pdf","txt"])
+uploaded_file=st.file_uploader("Tải tài liệu PDF/TXT",type=["pdf","txt"],max_upload_size=20)
 
 #2.Nhận diện file
 file_id=None
@@ -95,12 +93,7 @@ if st.session_state.get("file_id")!=file_id:
     for key in ("text","summary","questions"):
         st.session_state.pop(key,None)
     
-    st.session_state["submitted"] = False
-    
-    #xóa các câu trả lời động liên quan đến file cũ
-    for key in list(st.session_state.keys()):
-        if key.startswith("answer_"):
-            del st.session_state[key]
+    reset_quiz()
             
 #3.Gọi module của Hiếu Nguyễn(thao tác trên giao diện khi up file lên)
 if uploaded_file is not None:
@@ -119,8 +112,6 @@ if uploaded_file is not None:
             st.session_state["text"]=text
             st.session_state.pop("summary",None)
             st.session_state.pop("questions",None)
-            
-        
             
             st.success("Đọc tài liệu thành công.")
         
@@ -157,19 +148,16 @@ with col1:
 with col2:
     if st.button("❓ Tạo câu hỏi",disabled=not ready):
         try:
-            with st.spinner("Đang tạo câu hỏi..."):
-                result=generate_quiz(st.session_state["text"])
+            with st.spinner("Đang tạo câu hỏi bằng Gemini..."):
+                result=generate_questions(st.session_state["text"],so_cau=5)
                 
             validate_quiz(result)
             
             st.session_state["questions"]=result
             
-            st.session_state["submitted"] = False
+            reset_quiz()
             
-            #Xóa lựa chọn trắc nghiệm cũ
-            for key in list(st.session_state.keys()):
-                if key.startswith("answer_"):
-                    del st.session_state[key]
+            st.success(f"Đã tạo {len(result)} câu hỏi!")
         except Exception as e:
             st.error(f"Lỗi tạo câu hỏi: {e}")
 
@@ -183,17 +171,26 @@ if st.session_state.get("questions"):
     st.subheader("Câu hỏi trắc nghiệm")
     
     questions=st.session_state["questions"]
+    submitted=st.session_state.get("submitted",False)
     
+    
+    version = st.session_state.get("quiz_version", 0)
     for i,q in enumerate(questions):
-        st.write(f"**Câu {i + 1}: {q['questions']}**")
+        st.write(f"**Câu {i + 1}: {q['question']}**")
+        
+        options_hien_thi = [
+            f"{label}. {option}"
+            for label, option in zip("ABCD", q["options"])
+        ]
+
         
         #in ra các nút chọn đáp án chưa được tick sẵn, 
         # đồng thời lưu lựa chọn của người dùng theo từng key tương ứng.
         #chưa ấn nạp bài thì để giá trị mặc định là disabled=false->vẫn cho phép chọn đáp án
-        st.radio(f"Đáp án câu {i+1}",q["options"],index=None,key=f"answer_{i}",disabled=st.session_state.get("submitted",False))
+        st.radio(f"Đáp án câu {i+1}",options_hien_thi,index=None,key=f"answer_{version}_{i}",disabled=submitted)
         
     #nút nộp bài
-    if not st.session_state.get("submitted",False):
+    if not submitted:
         if st.button("Nộp bài"):
             st.session_state["submitted"]=True
             st.rerun()
@@ -203,11 +200,17 @@ if st.session_state.get("questions"):
         score = 0
 
         for i, q in enumerate(questions):
-            selected = st.session_state.get(f"answer_{i}")
+            selected = st.session_state.get(f"answer_{version}_{i}")
+            
+            dap_an_chon = (
+                selected.split(".", 1)[0]
+                if selected is not None
+                else None
+            )
 
-            if selected is not None and selected.startswith(
-                q["answer"] + "."
-            ):
+
+            if dap_an_chon == q["answer"]: 
+            
                 score += 1
                 st.success(f"Câu {i + 1}: Chính xác!")
             else:
@@ -215,14 +218,20 @@ if st.session_state.get("questions"):
                     f"Câu {i + 1}: Chưa chính xác. "
                     f"Đáp án đúng: {q['answer']}"
                 )
+            # Hiển thị giải thích từ AI
+            st.caption(
+                f"Giải thích: {q['explanation']}"
+            )
 
         st.subheader(f"Kết quả: {score}/{len(questions)} câu đúng")
 
-        if st.button("Làm lại"):
-            st.session_state["submitted"] = False
-
-            for i in range(len(questions)):
-                st.session_state.pop(f"answer_{i}", None)
-
-            st.rerun()
+        st.button("Làm lại", on_click=reset_quiz)
+        
+        
+#Mẹo phổ biến trong Streamlit: 
+# Trong Streamlit, các widget như st.radio ghi nhớ lựa chọn của người dùng 
+# dựa vào tham số key. Khi gán key động theo phiên bản việc tăng quiz_version
+# lên 1 sẽ làm thay đổi key của tất cả các nút radio.
+# Streamlit sẽ coi đây là một bộ nút radio hoàn toàn mới và tự động đưa chúng
+# về trạng thái chưa chọn gì.
         

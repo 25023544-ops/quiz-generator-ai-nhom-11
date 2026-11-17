@@ -110,13 +110,13 @@ def call_llm(prompt, retries=3, wait=3, model=None):
     for vong in range(1, retries + 1):
 
         for ten in _model_san_sang(cac_model):
+            bat_dau = time.perf_counter()
 
             try:
-                resp = client.models.generate_content(
-                    model=ten,
-                    contents=prompt
-                )
-
+                print(f"[API] Đang gọi model: {ten}")
+                resp = client.models.generate_content(model=ten,contents=prompt)
+                thoi_gian = time.perf_counter() - bat_dau
+                print(f"[API] Thành công: {ten} | "f"{thoi_gian:.2f} giây")
                 if not resp.text:
                     raise RuntimeError(
                         "AI trả về rỗng (có thể bị bộ lọc chặn)"
@@ -141,6 +141,8 @@ def call_llm(prompt, retries=3, wait=3, model=None):
                 return resp.text
 
             except Exception as e:
+                print(f"[API] Lỗi model {ten} sau "f"{time.perf_counter() - bat_dau:.2f} giây: {e}"
+)
                 loi_cuoi = e
 
                 if _ma_loi(e) in (400, 401, 403):

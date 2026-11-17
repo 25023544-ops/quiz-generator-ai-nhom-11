@@ -1,3 +1,11 @@
-pypdf
-google-genai
-python-dotenv
+# AI Study Assistant – Python 3.11–3.13
+# Thư viện giao diện web
+streamlit>=1.50.0,<2.0.0
+
+# Đọc PDF văn bản
+pypdf>=5.0.0,<8.0.0
+
+# Gemini API SDK và cấu hình khóa API
+# Chú ý: module hiện dùng `from google import genai`, không phải google-generativeai.
+google-genai>=1.0.0,<2.0.0
+python-dotenv>=1.0.0,<2.0.0
