@@ -149,7 +149,7 @@ with col2:
     if st.button("❓ Tạo câu hỏi",disabled=not ready):
         try:
             with st.spinner("Đang tạo câu hỏi bằng Gemini..."):
-                result=generate_questions(st.session_state["text"],so_cau=5)
+                result=generate_questions(st.session_state["text"],so_cau=10)
                 
             validate_quiz(result)
             
