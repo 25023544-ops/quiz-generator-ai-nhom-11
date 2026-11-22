@@ -9,3 +9,4 @@ pypdf>=5.0.0,<8.0.0
 # Chú ý: module hiện dùng `from google import genai`, không phải google-generativeai.
 google-genai>=1.0.0,<2.0.0
 python-dotenv>=1.0.0,<2.0.0
+argon2-cffi

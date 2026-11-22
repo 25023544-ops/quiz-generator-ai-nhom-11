@@ -7,6 +7,9 @@ from document_processor import extract_text
 from ai_summarizer import summarize
 from quiz_generator import generate_questions
 
+from account_db import save_summary, save_quiz_attempt
+from account_ui import require_login, sidebar_menu, show_history_page
+
 #HÀM KIỂM TRA CẤU TRÚC CÂU HỎI
 def validate_quiz(questions):
     if not isinstance(questions,list) or not questions:
@@ -62,10 +65,17 @@ def extract_uploaded_file(uploaded_file):
 #GIAO DIỆN
 st.set_page_config(
     page_title="AI Study Assistant",
-    page_icon="📚"
+    page_icon="📚",
+    layout="wide"
 )
-
+#Chưa đăng nhập → Hiển thị đăng nhập/đăng ký
+require_login()
+#Chọn chức năng sau khi đăng nhập
+page = sidebar_menu()
 st.title("📚 AI Study Assistant")
+if page != "📚 Học tập":
+    show_history_page(page)
+    st.stop()
 
 st.info(
     "Đang sử dụng các module thật: "
@@ -140,16 +150,25 @@ with col1:
         
             if not isinstance(result,str) or not result.strip():
                 raise ValueError("Bản tắt không hợp lệ.")
-        
-            st.session_state["summary"]=result 
         except Exception as e:
             st.error(f"Lỗi tóm tắt:{e}")
-
+        else:
+            st.session_state["summary"]=result 
+            try:
+                #lưu lịch sử tóm tắt 
+                save_summary(st.session_state["user_id"],uploaded_file.name 
+                            if uploaded_file is not None else "tai_lieu.txt",result)
+                st.success("Đã tóm tắt và lưu vào lịch sử!")
+            except Exception as e:
+                # Vẫn giữ bản tóm tắt, chỉ báo lỗi lưu lịch sử
+                st.warning(
+                    f"Đã tóm tắt thành công nhưng chưa lưu được lịch sử: {e}"
+                )    
 with col2:
     if st.button("❓ Tạo câu hỏi",disabled=not ready):
         try:
             with st.spinner("Đang tạo câu hỏi bằng Gemini..."):
-                result=generate_questions(st.session_state["text"],so_cau=10)
+                result=generate_questions(st.session_state["text"],so_cau=5)
                 
             validate_quiz(result)
             
@@ -189,43 +208,102 @@ if st.session_state.get("questions"):
         #chưa ấn nạp bài thì để giá trị mặc định là disabled=false->vẫn cho phép chọn đáp án
         st.radio(f"Đáp án câu {i+1}",options_hien_thi,index=None,key=f"answer_{version}_{i}",disabled=submitted)
         
-    #nút nộp bài
+    #NỘP BÀI VÀ LƯU LỊCH SỬ QUIZ
+
     if not submitted:
         if st.button("Nộp bài"):
-            st.session_state["submitted"]=True
-            st.rerun()
-    
-    # Chỉ chấm sau khi nộp bài
+
+            # Bước 1: Lấy các đáp án đã chọn
+            selected_letters = []
+
+            for i in range(len(questions)):
+                selected = st.session_state.get(
+                    f"answer_{version}_{i}"
+                )
+
+                # Lấy chữ cái A, B, C hoặc D
+                # Nếu chưa chọn thì lưu None
+                letter = (
+                    selected.split(".", 1)[0]
+                    if selected is not None
+                    else None
+                )
+
+                selected_letters.append(letter)
+
+            # Bước 2: Tính điểm
+            score = 0
+
+            for i, q in enumerate(questions):
+                if selected_letters[i] == q["answer"]:
+                    score += 1
+
+            # Bước 3: Lưu lịch sử vào SQLite
+            try:
+                save_quiz_attempt(
+                    user_id=st.session_state["user_id"],
+                    filename=(
+                        uploaded_file.name
+                        if uploaded_file is not None
+                        else "tai_lieu.txt"
+                    ),
+                    questions=questions,
+                    selected_letters=selected_letters,
+                    score=score
+                )
+
+            except Exception as e:
+                st.error(f"Lỗi lưu lịch sử quiz: {e}")
+
+            else:
+                # Chỉ đánh dấu đã nộp sau khi lưu thành công
+                st.session_state["submitted"] = True
+
+                # Chạy lại để hiển thị kết quả
+                st.rerun()
+
+    #HIỂN THỊ KẾT QUẢ SAU KHI NỘP 
+
     else:
         score = 0
 
         for i, q in enumerate(questions):
-            selected = st.session_state.get(f"answer_{version}_{i}")
-            
+
+            # Lấy lại đáp án từ Session State
+            selected = st.session_state.get(
+                f"answer_{version}_{i}"
+            )
+
             dap_an_chon = (
                 selected.split(".", 1)[0]
                 if selected is not None
                 else None
             )
 
-
-            if dap_an_chon == q["answer"]: 
-            
+            # Chấm từng câu
+            if dap_an_chon == q["answer"]:
                 score += 1
                 st.success(f"Câu {i + 1}: Chính xác!")
+
             else:
                 st.error(
                     f"Câu {i + 1}: Chưa chính xác. "
                     f"Đáp án đúng: {q['answer']}"
                 )
-            # Hiển thị giải thích từ AI
+
+            # Hiển thị giải thích
             st.caption(
                 f"Giải thích: {q['explanation']}"
             )
 
-        st.subheader(f"Kết quả: {score}/{len(questions)} câu đúng")
+        # Hiển thị tổng điểm
+        st.subheader(
+            f"Kết quả: {score}/{len(questions)} câu đúng"
+        )
 
+        # Cho phép làm lại bài
         st.button("Làm lại", on_click=reset_quiz)
+
         
         
 #Mẹo phổ biến trong Streamlit: 
